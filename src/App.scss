@@ -1,6 +1,5 @@
 #root {
   margin: 0 auto;
-  padding: 2rem;
   overflow: auto;
   height: 100%;
   width: 100%;
@@ -12,4 +11,24 @@
 
 .read-the-docs {
   color: #888;
+}
+table,
+tr,
+th,
+td {
+  border: 1px solid #d8d8d8;
+  padding: 4px;
+}
+.prosemirror-flat-list {
+  display: flex;
+  align-items: stretch;
+  margin-bottom: 0;
+  .list-marker {
+    position: relative;
+    min-width: 14px;
+    margin-right: 2px;
+  }
+}
+h1 {
+  margin: 10px 0 !important;
 }

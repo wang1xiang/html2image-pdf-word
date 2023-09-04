@@ -1,223 +1,7 @@
 import Html2canvas from 'html2canvas';
-import JsPDF from 'jspdf';
 import { asBlob } from 'html-docx-js-typescript';
 import { saveAs } from 'file-saver';
-import { createWatermarkBase64 } from './tools';
-
-/** padding */
-const PADDING = 90;
-/** a4纸的尺寸 */
-enum A4_PAPER_SIZE_ENUM {
-  'width' = 595.28,
-  'height' = 841.89,
-}
-
-const handleTitle = (ele: HTMLElement, filename: string) => {
-  // 文档标题
-  const title = document.createElement('div');
-  title.setAttribute('class', 'q-title');
-  title.setAttribute(ele.firstElementChild?.attributes[2]?.name || 'data-', '');
-  title.style.fontSize = '32px';
-  title.style.fontWeight = '700';
-  title.innerText = filename;
-  ele.firstElementChild?.remove();
-  ele.prepend(title);
-};
-// 处理文字中换行的背景色
-const handleMarkTag = (ele: HTMLElement) => {
-  const markElements = ele.querySelectorAll('mark');
-  for (const sel of markElements) {
-    const { height } = sel.getBoundingClientRect();
-    let parentElement = sel.parentElement;
-    while (parentElement?.tagName !== 'P') {
-      parentElement = parentElement?.parentElement as HTMLElement;
-    }
-    const { height: parentHeight } = (
-      parentElement as unknown as HTMLElement
-    ).getBoundingClientRect();
-    // mark的高度没有超过p标签的一半时 则没有换行
-    if (height < parentHeight / 2) continue;
-    // 超过一半时说明换行了 将<mark>测试文案</mark>替换为<mark>测</mark><mark>试</mark><mark>文</mark><mark>案</mark>
-    const innerText = sel.innerText;
-    const outHtml = sel.outerHTML;
-    let newHtml = '';
-    innerText.split('')?.forEach((text) => {
-      newHtml += outHtml.replace(innerText, text);
-    });
-    sel.outerHTML = newHtml;
-  }
-};
-// 删除cursor
-const removeCursor = (cloneEle: HTMLElement) =>
-  cloneEle
-    .querySelectorAll('.ProseMirror-yjs-cursor')
-    .forEach((cursor) => cursor.parentElement?.removeChild(cursor));
-function cleanHtml(ele: HTMLElement, filename: string) {
-  const selectElements = ele.querySelectorAll('select');
-  selectElements.forEach((sel) => (sel.style.display = 'none'));
-  handleTitle(ele, filename);
-  handleMarkTag(ele);
-
-  const warp = document.createElement('div');
-  // 图片、pdf导出背景色不是白色
-  warp.style.position = 'absolute';
-  warp.style.top = '0';
-  warp.style.left = '0';
-  warp.style.background = '#fff';
-  warp.style.zIndex = '-1';
-  warp.append(ele);
-  document.body.append(warp);
-  removeCursor(warp);
-  return {
-    warp,
-    cleanHtmlRecover: () => {
-      warp.remove();
-    },
-  };
-}
-// 克隆节点
-const cloneElement = (selector: HTMLElement | string) => {
-  const ele =
-    typeof selector === 'string'
-      ? (document.querySelector(selector) as HTMLElement)
-      : selector;
-  if (!ele) return;
-
-  const cloneEle = ele.cloneNode(true) as HTMLElement;
-  const { width, height } = ele.getBoundingClientRect();
-  cloneEle.style.width = `${width}px`;
-  cloneEle.style.height = `${height}px`;
-  cloneEle.style.padding = `${PADDING}px`;
-  cloneEle.style.border = 'none';
-  cloneEle.style.boxShadow = 'none';
-  return cloneEle;
-};
-/** 去除点赞和评论 */
-const cleanLikesAndComment = (
-  ele: HTMLElement,
-  clearElementClass = ['editor-comment', 'editor-likes'],
-  textNode?: HTMLElement
-) => {
-  clearElementClass.forEach((className) => {
-    const likesOrCommentDOM = ele.querySelector(`.${className}`);
-    const { height } = document
-      .querySelector(`.${className}`)
-      ?.getBoundingClientRect() || {
-      height: 0,
-    };
-    ele.style.height = parseFloat(ele.style.height) - height + 'px';
-    likesOrCommentDOM?.parentElement?.removeChild(likesOrCommentDOM);
-  });
-  if (textNode) {
-    const commentDOM = ele.querySelector(`.editor-comment`) as HTMLElement;
-    commentDOM.style.marginTop = '0'; // 20
-    commentDOM.style.padding = '0';
-    commentDOM.prepend(textNode);
-    ele.style.height = parseFloat(ele.style.height) - (28 + 96 + 20) + 'px';
-  }
-};
-const createCommentText = () => {
-  const text = document.createElement('h2');
-  text.innerText = '引用原文评论：';
-  text.style.marginTop = '40px';
-  text.style.borderBottom = '1px solid #F5F5F5';
-  return text;
-};
-export function exportAsImg(
-  selector: HTMLElement | string,
-  filename: string,
-  needWatermark: undefined | boolean
-) {
-  const cloneEle = cloneElement(selector);
-  if (!cloneEle) return Promise.reject();
-  // 水印
-  if (needWatermark) {
-    const base64 = createWatermarkBase64('水印');
-    cloneEle.style.backgroundImage = `url('${base64}')`;
-  }
-  cleanLikesAndComment(cloneEle);
-
-  const { warp, cleanHtmlRecover } = cleanHtml(cloneEle, filename);
-
-  return new Promise<void>((resolve) => {
-    Html2canvas(warp, {
-      useCORS: true,
-      scale: window.devicePixelRatio * 2, // 增加清晰度
-    })
-      .then((canvas) => {
-        const a = document.createElement('a');
-        const event = new MouseEvent('click');
-        a.download = filename;
-        a.href = canvas.toDataURL('image/jpg');
-        a.dispatchEvent(event);
-      })
-      .finally(() => {
-        cleanHtmlRecover();
-        resolve();
-      });
-  });
-}
-
-const generatePDF = (canvas: HTMLCanvasElement, filename: string) => {
-  // html页面生成的canvas在pdf中图片的宽高
-  const contentWidth = canvas.width;
-  const contentHeight = canvas.height;
-  // 一页pdf显示html页面生成的canvas高度
-  const pageHeight =
-    (contentWidth / A4_PAPER_SIZE_ENUM.width) * A4_PAPER_SIZE_ENUM.height;
-  // 未生成pdf的html页面高度
-  let leftHeight = contentHeight;
-  // 页面偏移
-  let position = 0;
-  const imgWidth = A4_PAPER_SIZE_ENUM.width;
-  const imgHeight = (A4_PAPER_SIZE_ENUM.width / contentWidth) * contentHeight;
-  const pageData = canvas.toDataURL('image/jpeg', 1.0);
-  const PDF = new JsPDF('p', 'pt', 'a4');
-
-  // 当内容未超过pdf一页显示的范围，无需分页
-  if (leftHeight < pageHeight) {
-    // addImage(pageData, 'JPEG', 左，上，宽度，高度)设置
-    PDF.addImage(pageData, 'JPEG', 0, 0, imgWidth, imgHeight);
-  } else {
-    // 超过一页时，分页打印（每页高度841.89）
-    while (leftHeight > 0) {
-      PDF.addImage(pageData, 'JPEG', 0, position, imgWidth, imgHeight);
-      leftHeight -= pageHeight;
-      position -= A4_PAPER_SIZE_ENUM.height;
-      if (leftHeight > 0) {
-        PDF.addPage();
-      }
-    }
-  }
-  PDF.save(filename + '.pdf');
-};
-export function exportAsPdf(
-  selector: HTMLElement | string,
-  filename: string,
-  needComment: undefined | boolean
-) {
-  const cloneEle = cloneElement(selector);
-  if (!cloneEle) return Promise.reject();
-  if (!needComment) cleanLikesAndComment(cloneEle);
-  // 添加引用原文评论：
-  if (needComment) {
-    const textNode = createCommentText();
-    cleanLikesAndComment(cloneEle, ['editor-likes'], textNode);
-  }
-  const { warp, cleanHtmlRecover } = cleanHtml(cloneEle, filename);
-
-  return new Promise<void>((resolve) => {
-    Html2canvas(warp, {
-      useCORS: true,
-      scale: window.devicePixelRatio * 2, // 增加清晰度
-    })
-      .then((canvas) => generatePDF(canvas, filename))
-      .finally(() => {
-        cleanHtmlRecover();
-        resolve();
-      });
-  });
-}
+import { A4_PAPER_SIZE_ENUM } from '../constants';
 
 // 图片处理
 const handleImage = (ele: HTMLElement, cloneEle: HTMLElement) => {
@@ -267,6 +51,7 @@ const handleTableStyle = (cloneEle: HTMLElement) => {
   });
 };
 // 标题高度和字体失效 需要设置lineHeight和fontWeight
+// eslint-disable-next-line
 const handleLevelStyle = (cloneEle: HTMLElement) => {
   Array.from({ length: 6 }).forEach((_, index) =>
     (
@@ -447,7 +232,6 @@ const handleCss = async () => {
   const remoteCSSStreamResult = await Promise.allSettled(
     remoteCSSStreamPromise
   );
-  console.log('remoteCSSStreamResult', remoteCSSStreamResult);
   const cssText = remoteCSSStreamResult.map((item) => {
     const { status, value } = item as any;
     if (status === 'fulfilled') return value;
@@ -460,8 +244,7 @@ const handleStyle = async (ele: HTMLElement, cloneEle: HTMLElement) => {
   handleImage(ele, cloneEle);
   removeWhiteBox(cloneEle);
   handleTableStyle(cloneEle);
-  handleLevelStyle(cloneEle);
-  removeCursor(cloneEle);
+  // handleLevelStyle(cloneEle);
   await handleMind(ele, cloneEle);
 
   handleUlStyle(cloneEle, uiLevel);
@@ -470,7 +253,6 @@ const handleStyle = async (ele: HTMLElement, cloneEle: HTMLElement) => {
   handleIframeStyle(cloneEle);
 
   const cssText = await handleCss();
-  console.log(cssText, 'cssText');
   const cssString = cssText
     .join('')
     // 过滤UI原来的样式
@@ -478,13 +260,9 @@ const handleStyle = async (ele: HTMLElement, cloneEle: HTMLElement) => {
     .replace(/\.ul/g, '.xxx_ul')
     .replace(/\.li/g, '.xxx_li')
     .replace(/\.ol/g, '.xxx_ol')
-    // .replace(/\.ProseMirror \> ul/g, '.xxx_ul')
-    // .replace(/\.ProseMirror \> ol/g, '.xxx_ol')
-    // .replace(/\.ProseMirror \> li/g, '.xxx_li')
     .replace(/\.ProseMirror ul/g, '.xxx_ul')
     .replace(/\.ProseMirror ol/g, '.xxx_ol')
     .replace(/\.ProseMirror li/g, '.xxx_li');
-  console.log(cssString, 'cssString');
   const innerHtml = cloneEle.innerHTML
     // strong在word中不生效问题
     .replace(/<strong>/g, '<b>')
@@ -509,6 +287,12 @@ const handleStyle = async (ele: HTMLElement, cloneEle: HTMLElement) => {
       </html>`;
   return htmlString;
 };
+/**
+ * 导出pdf
+ * @param selector 导出pdf对应的元素
+ * @param filename 导出后文件名称
+ * @returns Promise
+ */
 export function exportAsDocx(selector: HTMLElement | string, filename: string) {
   const ele =
     typeof selector === 'string'
@@ -519,8 +303,6 @@ export function exportAsDocx(selector: HTMLElement | string, filename: string) {
   // eslint-disable-next-line no-async-promise-executor
   return new Promise<void>(async (resolve) => {
     const cloneEle = ele.cloneNode(true) as HTMLElement;
-    cleanLikesAndComment(cloneEle);
-    handleTitle(cloneEle, filename);
     const htmlString = await handleStyle(ele, cloneEle);
     const margins = { top: 1440 };
 
