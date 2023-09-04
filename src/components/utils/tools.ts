@@ -83,9 +83,8 @@ export const cleanHtml = (ele: HTMLElement) => {
   // 图片、pdf导出背景色不是白色
   warp.style.position = 'absolute';
   warp.style.top = '0';
-  warp.style.left = '0';
+  warp.style.left = '-100%';
   warp.style.background = '#fff';
-  warp.style.zIndex = '-1';
   warp.append(ele);
   document.body.append(warp);
   return {

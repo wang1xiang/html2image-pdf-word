@@ -9,7 +9,6 @@ import 'dayjs/locale/zh-cn';
 import { ConfigProvider } from 'antd';
 
 dayjs.locale('zh-cn');
-
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <ConfigProvider locale={zhCN}>
