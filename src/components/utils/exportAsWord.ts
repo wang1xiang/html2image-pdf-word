@@ -288,8 +288,8 @@ const handleStyle = async (ele: HTMLElement, cloneEle: HTMLElement) => {
   return htmlString;
 };
 /**
- * 导出pdf
- * @param selector 导出pdf对应的元素
+ * 导出word
+ * @param selector 导出word对应的元素
  * @param filename 导出后文件名称
  * @returns Promise
  */
