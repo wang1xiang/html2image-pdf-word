@@ -1,5 +1,7 @@
 ## html 内容转图片、pdf、word
 
+[👉🏻 预览地址](https://wang1xiang.github.io/html2image-pdf-word/)
+
 ```js
 // src/components/utils/exportAsImage.ts
 /**
