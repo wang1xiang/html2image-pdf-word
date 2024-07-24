@@ -1,5 +1,7 @@
 ## html 内容转图片、pdf、word
 
+支持 npm 包：[👉🏻 html2image-pdf-word-tool](https://github.com/wang1xiang/html2image-pdf-word-tool)
+
 [👉🏻 预览地址](https://wang1xiang.github.io/html2image-pdf-word/)
 
 ```js
